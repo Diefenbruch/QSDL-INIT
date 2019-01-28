@@ -1,0 +1,7 @@
+# ignore the following files and directories
+obj
+src
+bin
+lib
+include
+.depend*

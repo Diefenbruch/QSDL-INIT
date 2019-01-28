@@ -69,7 +69,7 @@ QUEST_INC_DIR=$QUEST_HOME/include
 export QUEST_INC_DIR
 
 # the library path for QUEST libraries
-QUEST_LIB_DIR=$QUEST_HOME/lib/$HOSTTYPE
+QUEST_LIB_DIR=$QUEST_HOME/lib/$HOSTTYPE'-linux'
 export QUEST_LIB_DIR
 
 # thread type to be used by evaluator.

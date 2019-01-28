@@ -1,0 +1,183 @@
+SYSTEM managed_philosophers;
+
+/*
+ * Externe Synonyme zur Anpassung der Systemparameter:
+ */
+ 
+SYNONYM NUM_OF_PHILOSOPHERS Natural = external;
+SYNONYM NUM_OF_GOURMETS Natural = external;
+SYNONYM NUM_OF_FORKS Natural = NUM_OF_PHILOSOPHERS;
+SYNONYM THINK_TIME Duration = external;
+SYNONYM EAT_TIME Duration = external;
+
+/*
+ *  Signale:
+ */
+
+SIGNAL Fork, NoFork, AcquireFork,
+       ReleaseFork;
+
+BLOCK table referenced;
+
+ENDSYSTEM;
+
+BLOCK table;
+
+/*
+ * Deklaration aller Prozesstypen:
+ */
+
+PROCESS manager REFERENCED;
+PROCESS philosopher (NUM_OF_PHILOSOPHERS, NUM_OF_PHILOSOPHERS) REFERENCED;
+PROCESS fork (NUM_OF_FORKS, NUM_OF_FORKS) REFERENCED;
+
+/*
+ * Signalrouten zwischen den Prozessen:
+ */
+
+SIGNALROUTE P2F
+  FROM philosopher TO fork WITH AcquireFork, ReleaseFork;
+  FROM fork TO philosopher WITH Fork, NoFork;
+
+ENDBLOCK table;
+
+PROCESS manager (1, 1);
+
+  DCL left_fork PID;
+  DCL first_fork PID;
+  DCL right_fork PID;
+  DCL remaining_philosophers Natural := NUM_OF_PHILOSOPHERS;
+
+  start;
+    NEXTSTATE CreateFirstPhilosoph;
+
+  STATE CreateFirstPhilosoph;
+    INPUT NONE;
+      CREATE fork;
+      TASK right_fork := offspring;
+      TASK first_fork := offspring;
+      CREATE fork;
+      TASK left_fork := offspring;
+      CREATE philosopher(NUM_OF_GOURMETS MOD remaining_philosophers,
+                         right_fork, left_fork);
+      TASK remaining_philosophers := remaining_philosophers - 1;
+      NEXTSTATE CreateNextPhilosoph;
+
+  STATE CreateNextPhilosoph;
+    PROVIDED remaining_philosophers > 0;
+      TASK right_fork := left_fork;
+      DECISION remaining_philosophers > 1;
+        (TRUE): CREATE fork;
+                TASK left_fork := offspring;
+        (FALSE): TASK left_fork := first_fork;
+      ENDDECISION;
+      CREATE philosopher(NUM_OF_GOURMETS MOD remaining_philosophers,
+                         right_fork, left_fork);
+      TASK remaining_philosophers := remaining_philosophers - 1;
+      NEXTSTATE CreateNextPhilosoph;
+      
+ENDPROCESS manager;
+
+PROCESS philosopher (0, NUM_OF_PHILOSOPHERS, 1);
+
+  FPAR ascetic Natural, left_fork PID, right_fork PID;
+  DCL forks Natural := 0;
+  DCL my_think_time, my_eat_time Duration;
+
+  SENSOR state_freq FreqState;
+  SENSOR state_time_eat WaitTimeState(Eat);
+  SENSOR state_time_think WaitTimeState(Think);
+
+  start;
+    DECISION ascetic = 0;
+      (false) : TASK my_think_time := THINK_TIME;
+                TASK my_eat_time := EAT_TIME;
+      (true) : TASK my_think_time := THINK_TIME / 2.0;
+               TASK my_eat_time := EAT_TIME * 2.0;
+    ENDDECISION;
+
+    NEXTSTATE Think;
+
+  STATE Think awake my_think_time;
+    INPUT none;
+      DECISION any;
+        (): OUTPUT AcquireFork TO left_fork;
+            NEXTSTATE WaitLeftFork;
+        (): OUTPUT AcquireFork TO right_fork;
+            NEXTSTATE WaitRightFork;
+      ENDDECISION;
+
+  STATE WaitLeftFork;
+    INPUT fork;
+      TASK forks := forks + 1;
+      DECISION forks = 2;
+        (true): NEXTSTATE Eat;
+        (false): OUTPUT AcquireFork TO right_fork;
+                 NEXTSTATE WaitRightFork;
+      ENDDECISION;
+
+    INPUT NoFork;
+      DECISION forks > 0;
+        (true): OUTPUT ReleaseFork TO right_fork;
+                TASK forks := forks - 1;
+                NEXTSTATE Think;
+        (false): NEXTSTATE Think;
+      ENDDECISION;
+
+  STATE WaitRightFork;
+    INPUT fork;
+      TASK forks := forks + 1;
+      DECISION forks = 2;
+        (true): NEXTSTATE Eat;
+        (false): OUTPUT AcquireFork TO left_fork;
+                 NEXTSTATE WaitLeftFork;
+      ENDDECISION;
+
+    INPUT NoFork;
+      DECISION forks > 0;
+        (true): OUTPUT ReleaseFork TO left_fork;
+                TASK forks := forks - 1;
+                NEXTSTATE Think;
+        (false): NEXTSTATE Think;
+      ENDDECISION;
+
+  STATE Eat awake my_eat_time;
+    INPUT NONE;
+      OUTPUT ReleaseFork TO left_fork;
+      OUTPUT ReleaseFork TO right_fork;
+      TASK forks := 0;
+      NEXTSTATE Think;
+
+ENDPROCESS philosopher;
+
+PROCESS fork (0, NUM_OF_FORKS, NUM_OF_PHILOSOPHERS);
+
+  DCL user PID := NULL;
+
+  start;
+    NEXTSTATE ForkPresent;
+
+  STATE ForkPresent;
+    INPUT AcquireFork;
+      OUTPUT fork TO sender;
+      TASK user := sender;
+      NEXTSTATE ForkAbsent;
+
+  STATE ForkAbsent;
+    INPUT ReleaseFork;
+      DECISION sender = user;
+        (true): TASK user := NULL;
+                NEXTSTATE ForkPresent;
+        (false): NEXTSTATE -;
+      ENDDECISION;
+      
+    INPUT AcquireFork;
+      OUTPUT NoFork TO sender;
+      NEXTSTATE ForkAbsent;
+
+endprocess fork;
+
+ATOM phil1Thinking := CurrentValue(<<BLOCK table>>philosopher(1)!state_freq) = 
+                      <<BLOCK table / PROCESS philosopher>>Think;
+ATOM phil1Eating := CurrentValue(<<BLOCK table>>philosopher(1)!state_freq) = 
+                    <<BLOCK table / PROCESS philosopher>>Eat;

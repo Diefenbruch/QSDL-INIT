@@ -1,0 +1,52 @@
+pcs_tcp_manager.cpp: In member function 'void pcs_tcp_manager::getfreeport(sys_qtcp::DataType_portrange&)':
+pcs_tcp_manager.cpp:455:19: warning: ISO C++ says that these are ambiguous, even though the worst conversion for the first is better than the worst conversion for the second:
+       v_n = v_n + 1;
+                   ^
+In file included from sys_qtcp.h:25:0,
+                 from blk_application.h:23,
+                 from pcs_tcp_manager.cpp:20:
+/home/qsdl/new/include/SCL/SCSyntype.h:118:27: note: candidate 1: SCSyntype<T> SCSyntype<T>::operator+(T) const [with T = long int]
+     SCSyntype<T>          operator+ (const T second) const;
+                           ^~~~~~~~
+pcs_tcp_manager.cpp:455:19: note: candidate 2: operator+(long int, int) <built-in>
+       v_n = v_n + 1;
+                   ^
+pcs_tcp_port.cpp: In member function 'void pcs_tcp_port::getfreebuffer(sys_qtcp::DataType_retransmitrange&)':
+pcs_tcp_port.cpp:1130:20: warning: ISO C++ says that these are ambiguous, even though the worst conversion for the first is better than the worst conversion for the second:
+       v_n = (v_n + 1) % syn_buffer_size;
+                    ^
+In file included from sys_qtcp.h:25:0,
+                 from blk_application.h:23,
+                 from pcs_tcp_port.cpp:20:
+/home/qsdl/new/include/SCL/SCSyntype.h:118:27: note: candidate 1: SCSyntype<T> SCSyntype<T>::operator+(T) const [with T = long int]
+     SCSyntype<T>          operator+ (const T second) const;
+                           ^~~~~~~~
+pcs_tcp_port.cpp:1130:20: note: candidate 2: operator+(long int, int) <built-in>
+       v_n = (v_n + 1) % syn_buffer_size;
+                    ^
+pcs_tcp_port.cpp: In member function 'void pcs_tcp_port::sendretransmit(sys_qtcp::DataType_retransmitrange)':
+pcs_tcp_port.cpp:1192:23: warning: ISO C++ says that these are ambiguous, even though the worst conversion for the first is better than the worst conversion for the second:
+           v_n = v_n + 1;
+                       ^
+In file included from sys_qtcp.h:25:0,
+                 from blk_application.h:23,
+                 from pcs_tcp_port.cpp:20:
+/home/qsdl/new/include/SCL/SCSyntype.h:118:27: note: candidate 1: SCSyntype<T> SCSyntype<T>::operator+(T) const [with T = long int]
+     SCSyntype<T>          operator+ (const T second) const;
+                           ^~~~~~~~
+pcs_tcp_port.cpp:1192:23: note: candidate 2: operator+(long int, int) <built-in>
+           v_n = v_n + 1;
+                       ^
+pcs_tcp_port.cpp: In member function 'void pcs_tcp_port::initretransmitqueue(sys_qtcp::DataType_retransmitrange)':
+pcs_tcp_port.cpp:1429:27: warning: ISO C++ says that these are ambiguous, even though the worst conversion for the first is better than the worst conversion for the second:
+       v_first = v_first + 1;
+                           ^
+In file included from sys_qtcp.h:25:0,
+                 from blk_application.h:23,
+                 from pcs_tcp_port.cpp:20:
+/home/qsdl/new/include/SCL/SCSyntype.h:118:27: note: candidate 1: SCSyntype<T> SCSyntype<T>::operator+(T) const [with T = long int]
+     SCSyntype<T>          operator+ (const T second) const;
+                           ^~~~~~~~
+pcs_tcp_port.cpp:1429:27: note: candidate 2: operator+(long int, int) <built-in>
+       v_first = v_first + 1;
+                           ^

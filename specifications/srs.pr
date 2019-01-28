@@ -1,0 +1,251 @@
+SYSTEM SRS;
+
+/*
+ * Externe Synonyme zur Anpassung der Systemparameter:
+ */
+ 
+SYNONYM MEDIUM_DELAY Duration = EXTERNAL;
+SYNONYM LOWER_PRODUCE_DELAY Duration = EXTERNAL;
+SYNONYM MEDIUM_PRODUCE_DELAY Duration = EXTERNAL;
+SYNONYM UPPER_PRODUCE_DELAY Duration = EXTERNAL;
+SYNONYM PROC_REQ_SPEED Real = EXTERNAL;
+SYNONYM PROC_REJ_SPEED Real = EXTERNAL;
+SYNONYM PROC_CON_SPEED Real = EXTERNAL;
+SYNONYM PROC_IND_SPEED Real = EXTERNAL;
+
+SYNONYM MAX_SERVICE_RESPONSE_DELAY Real = EXTERNAL;
+SYNONYM MAX_SERVICE_PROCESSING_DELAY Real = EXTERNAL;
+SYNONYM MAX_MEDIUM_TRANSMISSION_DELAY Real = EXTERNAL;
+SYNONYM MAX_JITTER Real = EXTERNAL;
+
+BLOCK B1 REFERENCED;
+
+ENDSYSTEM;
+
+BLOCK B1;
+
+/*
+ * Signale:
+ */
+ 
+SIGNAL UDReq, UDCon, UDRej, UDInd,
+       MDReq, MDCon, MDRej, MDInd;
+
+/*
+ * Diensttypen fuer den Sender- und den Receiver-Prozess:
+ */
+ 
+MACHINESERVICE ProcReq(Natural),
+               ProcRej(Natural),
+               ProcCon(Natural),
+               ProcInd(Natural);
+
+/*
+ * Deklaration aller Prozesstypen:
+ */
+ 
+PROCESS U1 REFERENCED;
+PROCESS S REFERENCED;
+PROCESS M REFERENCED;
+PROCESS R REFERENCED;
+PROCESS U2 REFERENCED;
+
+/*
+ * Signalrouten zwischen den Prozessen:
+ */
+
+SIGNALROUTE U12S
+  FROM U1 TO S WITH UDReq;
+  FROM S TO U1 WITH UDCon, UDRej;
+SIGNALROUTE S2M
+  FROM S TO M WITH MDReq;
+  FROM M TO S WITH MDCon, MDRej;
+SIGNALROUTE M2R
+  FROM M TO R WITH MDInd;
+SIGNALROUTE R2U2
+  FROM R TO U2 WITH UDInd;
+
+/*
+ * Deklaration aller Maschinen:
+ */
+
+MACHINE SMach REFERENCED;
+MACHINE RMach REFERENCED;
+
+/*
+ * Links zur Verbindung der Maschinen mit den Prozessen:
+ */
+ 
+LINK L1 FROM S to SMach WITH ProcReq, ProcRej, ProcCon;
+LINK L2 FROM R to RMach WITH ProcInd;
+
+/*
+ * Blockweite Sensoren:
+ */
+ 
+SENSOR end_to_end_delay BaseTally;
+
+ENDBLOCK;
+
+PROCESS U1(1, 1, 1);
+
+DCL HIST produce_delay Duration;
+DCL HIST tau Time;
+
+SENSOR sig_out_freq FreqSignalSend;
+SENSOR sig_in_freq FreqSignalConsume;
+SENSOR service_response_delay BaseTally;
+
+  START;
+    DECISION ANY;
+      (): TASK produce_delay := LOWER_PRODUCE_DELAY;
+      (): TASK produce_delay := MEDIUM_PRODUCE_DELAY;
+      (): TASK produce_delay := UPPER_PRODUCE_DELAY;
+    ENDDECISION;
+
+    NEXTSTATE Produce;
+
+  STATE Produce AWAKE produce_delay;
+    INPUT NONE;
+      OUTPUT UDReq;
+      TASK tau := now;
+      NEXTSTATE Wait;
+  ENDSTATE;
+
+  STATE Wait;
+    INPUT UDCon;
+      UPDATE (service_response_delay, now - tau);
+      DECISION ANY;
+        (): TASK produce_delay := LOWER_PRODUCE_DELAY;
+        (): TASK produce_delay := MEDIUM_PRODUCE_DELAY;
+        (): TASK produce_delay := UPPER_PRODUCE_DELAY;
+      ENDDECISION;
+      NEXTSTATE Produce;
+
+    INPUT UDRej;
+      UPDATE (service_response_delay, now - tau);
+      TASK produce_delay := 0;
+      NEXTSTATE Produce;
+  ENDSTATE;
+
+ENDPROCESS;
+
+PROCESS S(1, 1, 1);
+
+SENSOR sig_out_freq FreqSignalSend;
+SENSOR sig_in_freq FreqSignalConsume;
+SENSOR service_processing_delay ResponseTimeRequest(ProcReq);
+
+  START;
+    NEXTSTATE S1;
+
+  STATE S1;
+    INPUT UDReq;
+      UPDATE (end_to_end_delay, 0, -1);
+      REQUEST ProcReq(1) FROM SMach;
+      OUTPUT MDReq;
+      NEXTSTATE S2;
+  ENDSTATE;
+
+  STATE S2;
+    INPUT MDRej;
+      REQUEST ProcRej(1) FROM SMach;
+      OUTPUT UDRej;
+      NEXTSTATE S1;
+
+    INPUT MDCon;
+      REQUEST ProcCon(1) FROM SMach;
+      OUTPUT UDCon;
+      NEXTSTATE S1;
+  ENDSTATE;
+
+ENDPROCESS;
+
+MACHINE SMach;
+  SERVER 1;
+  DISCIPLINE RANDOM;             
+  OFFERS ProcReq : PROC_REQ_SPEED;
+  OFFERS ProcRej : PROC_REJ_SPEED;
+  OFFERS ProcCon : PROC_CON_SPEED;
+ENDMACHINE;
+
+PROCESS M(1, 1, 1);
+
+SENSOR sig_in_freq FreqSignalConsume;
+
+  START;
+    NEXTSTATE Transmit;
+
+  STATE Transmit;
+    INPUT MDReq;
+      DECISION ANY;
+        (): OUTPUT MDInd DELAY MEDIUM_DELAY;
+            OUTPUT MDCon;
+        (): OUTPUT MDRej;
+      ENDDECISION;
+      NEXTSTATE Transmit;
+  ENDSTATE;
+
+ENDPROCESS;
+
+PROCESS R(1, 1, 1);
+
+SENSOR medium_transmission_delay TransmissionTimeSignal(MDInd);
+SENSOR sig_in_freq FreqSignalConsume;
+
+  START;
+    NEXTSTATE S1;
+
+  STATE S1;
+    INPUT MDInd;
+      REQUEST ProcInd(1) FROM RMach;
+      OUTPUT UDInd;
+      UPDATE (end_to_end_delay, 0, -2);
+      NEXTSTATE S1;
+  ENDSTATE;
+
+ENDPROCESS;
+
+MACHINE RMach;
+  SERVER 1;
+  DISCIPLINE RANDOM;             
+  OFFERS ProcInd : PROC_IND_SPEED;
+ENDMACHINE;
+
+PROCESS U2(1, 1, 1);
+
+SENSOR sig_in_freq FreqSignalConsume;
+
+  START;
+    NEXTSTATE Consume;
+
+  STATE Consume;
+    INPUT UDInd;
+      NEXTSTATE Consume;
+  ENDSTATE;
+
+ENDPROCESS;
+
+ATOM outUDReq := CurrentValue(<<BLOCK B1>> U1!sig_out_freq) =
+                 <<BLOCK B1>>UDReq;
+ATOM inUDCon  := CurrentValue(<<BLOCK B1>> U1!sig_in_freq) =
+                 <<BLOCK B1>>UDCon;
+ATOM inUDRej  := CurrentValue(<<BLOCK B1>> U1!sig_in_freq) =
+                 <<BLOCK B1>>UDRej;
+ATOM inUDReq  := CurrentValue(<<BLOCK B1>> S!sig_in_freq) =
+                 <<BLOCK B1>>UDReq;
+ATOM outMDReq := CurrentValue(<<BLOCK B1>> S!sig_out_freq) =
+                 <<BLOCK B1>>MDReq;
+ATOM inMDReq  := CurrentValue(<<BLOCK B1>> M!sig_in_freq) =
+                 <<BLOCK B1>>MDReq;
+ATOM inMDInd  := CurrentValue(<<BLOCK B1>> R!sig_in_freq) =
+                 <<BLOCK B1>>MDInd;
+ATOM inUDInd  := CurrentValue(<<BLOCK B1>> U2!sig_in_freq) =
+                 <<BLOCK B1>>UDInd;
+ATOM goodRespDelay := Average(<<BLOCK B1>> U1!service_response_delay) <=
+                      MAX_SERVICE_RESPONSE_DELAY;
+ATOM goodProcDelay := Average(<<BLOCK B1>> S!service_processing_delay) <=
+                      MAX_SERVICE_PROCESSING_DELAY;
+ATOM goodTransDelay := Average(<<BLOCK B1>> R!medium_transmission_delay) <=
+                       MAX_MEDIUM_TRANSMISSION_DELAY;
+ATOM goodJitter := VarCoeff(<<BLOCK B1>> end_to_end_delay) <= MAX_JITTER;

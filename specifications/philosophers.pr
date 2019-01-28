@@ -1,0 +1,144 @@
+SYSTEM philosophers;
+
+/*
+ * Externe Synonyme zur Anpassung der Systemparameter:
+ */
+ 
+SYNONYM NUM_OF_PHILS Natural = EXTERNAL;
+SYNONYM NUM_OF_FORKS Natural = NUM_OF_PHILS;
+SYNONYM THINK_TIME Duration = EXTERNAL;
+SYNONYM EAT_TIME Duration = EXTERNAL;
+
+/*
+ *  Signale:
+ */
+
+SIGNAL TheFork, NoFork, AcquireFork,
+       ReleaseFork;
+
+BLOCK table referenced;
+
+ENDSYSTEM;
+
+BLOCK table;
+
+/*
+ * Deklaration aller Prozesstypen:
+ */
+
+PROCESS philosopher (NUM_OF_PHILS, NUM_OF_PHILS) referenced;
+PROCESS fork (NUM_OF_FORKS, NUM_OF_FORKS) referenced;
+
+/*
+ * Signalrouten zwischen den Prozessen:
+ */
+
+SIGNALROUTE P2F
+  FROM philosopher TO fork WITH AcquireFork, ReleaseFork;
+  FROM fork TO philosopher WITH TheFork, NoFork;
+
+ENDBLOCK table;
+
+PROCESS philosopher (NUM_OF_PHILS, NUM_OF_PHILS, 1);
+
+  DCL left_fork PID  := SELF + NUM_OF_PHILS - 1;
+  DCL right_fork PID := SELF + NUM_OF_PHILS;
+  DCL forks Natural := 0;
+
+  SENSOR state_freq FreqState;
+  SENSOR time_eat WaitTimeState(Eat);
+  SENSOR time_think WaitTimeState(Think);
+
+  start;
+    DECISION left_fork <= NUM_OF_PHILS;
+      (true)  : TASK left_fork := left_fork + NUM_OF_PHILS;
+      (false) :
+    ENDDECISION;
+
+    NEXTSTATE Think;
+
+  STATE Think awake THINK_TIME;
+    INPUT none;
+      DECISION ANY;
+        (): OUTPUT AcquireFork TO left_fork;
+            NEXTSTATE WaitLeftFork;
+        (): OUTPUT AcquireFork TO right_fork;
+            NEXTSTATE WaitRightFork;
+      ENDDECISION;
+
+  STATE WaitLeftFork;
+    INPUT TheFork;
+      TASK forks := forks + 1;
+      DECISION forks = 2;
+        (true): NEXTSTATE Eat;
+        (false): OUTPUT AcquireFork TO right_fork;
+                 NEXTSTATE WaitRightFork;
+      ENDDECISION;
+
+    INPUT NoFork;
+      DECISION forks > 0;
+        (true): OUTPUT ReleaseFork TO right_fork;
+                TASK forks := forks - 1;
+                NEXTSTATE Think;
+        (false): NEXTSTATE Think;
+      ENDDECISION;
+
+  STATE WaitRightFork;
+    INPUT TheFork;
+      TASK forks := forks + 1;
+      DECISION forks = 2;
+        (true): NEXTSTATE Eat;
+        (false): OUTPUT AcquireFork TO left_fork;
+                 NEXTSTATE WaitLeftFork;
+      ENDDECISION;
+
+    INPUT NoFork;
+      DECISION forks > 0;
+        (true): OUTPUT ReleaseFork TO left_fork;
+                TASK forks := forks - 1;
+                NEXTSTATE Think;
+        (false): NEXTSTATE Think;
+      ENDDECISION;
+
+  STATE Eat awake EAT_TIME;
+    INPUT NONE;
+      OUTPUT ReleaseFork TO left_fork;
+      OUTPUT ReleaseFork TO right_fork;
+      TASK forks := 0;
+      NEXTSTATE Think;
+
+ENDPROCESS philosopher;
+
+PROCESS fork (NUM_OF_FORKS, NUM_OF_FORKS, 2);
+
+  SENSOR time_present WaitTimeState(ForkPresent);
+  SENSOR time_absent WaitTimeState(ForkAbsent);
+
+  START;
+    NEXTSTATE ForkPresent;
+
+  STATE ForkPresent;
+    INPUT AcquireFork;
+      OUTPUT TheFork TO SENDER;
+      NEXTSTATE ForkAbsent;
+
+  STATE ForkAbsent;
+    INPUT AcquireFork;
+      OUTPUT NoFork TO SENDER;
+      NEXTSTATE ForkAbsent;
+
+    INPUT ReleaseFork;
+      NEXTSTATE ForkPresent;
+      
+ENDPROCESS fork;
+
+ATOM phil1Thinks := CurrentValue(<<BLOCK table>>philosopher(1)!state_freq) 
+                    = <<BLOCK table / PROCESS philosopher>>Think;
+ATOM phil1Eats := CurrentValue(<<BLOCK table>>philosopher(1)!state_freq) 
+                  = <<BLOCK table / PROCESS philosopher>>Eat;
+ATOM phil1Lives := Average(<<BLOCK table>>philosopher(1)!time_eat) /
+                   Average(<<BLOCK table>>philosopher(1)!time_think)
+                   >= 0.05;
+ATOM fork1Use := Average(<<BLOCK table>>fork(NUM_OF_PHILS+1)!time_present) /
+                 Average(<<BLOCK table>>fork(NUM_OF_PHILS+1)!time_absent)
+                 >= 0.1;

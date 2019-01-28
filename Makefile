@@ -2,7 +2,7 @@
 # Makefile for QUEST-Project
 #
 #
-# $Author: hirche $
+# Author: Marc Diefenbruch
 # $Date: 1996/03/14 18:45:06 $
 #
 # (C) 1995, 1996, 1997, 1998 Universitaet GH Essen
@@ -46,7 +46,7 @@ SCRIPT := \
 QUEST_HOSTTYPE := $(shell $(SCRIPT))
 
 ## Load architecture specific information:
-include $(QUEST_INC_DIR)/makefiles/Makefile.$(QUEST_HOSTTYPE)
+#include $(QUEST_INC_DIR)/makefiles/Makefile.$(QUEST_HOSTTYPE)
 
 
 #######################################

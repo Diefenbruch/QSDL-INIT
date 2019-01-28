@@ -3,4 +3,6 @@ src
 bin
 lib
 include
+specifications
+output
 .depend*

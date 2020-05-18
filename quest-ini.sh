@@ -6,7 +6,7 @@
 # *********************************************
 
 # root of QUEST directory tree:
-QUEST_HOME=/home/qsdl/new
+QUEST_HOME=/home/qsdl/Quest
 export QUEST_HOME
 
 # Add path to quest binary directory:
